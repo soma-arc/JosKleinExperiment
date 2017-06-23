@@ -102,7 +102,7 @@ export default class Canvas2D {
             prevTranslate: new Complex(0, 0)
         };
         this.boundOnMouseWheel = this.onMouseWheel.bind(this);
-        this.canvas.addEventListener('mousewheel', this.boundOnMouseWheel);
+        this.canvas.addEventListener('wheel', this.boundOnMouseWheel);
         this.boundOnMouseDown = this.onMouseDown.bind(this);
         this.canvas.addEventListener('mousedown', this.boundOnMouseDown);
         this.boundOnMouseMove = this.onMouseMove.bind(this);
@@ -114,10 +114,10 @@ export default class Canvas2D {
 
     onMouseWheel(event) {
         event.preventDefault();
-        if (event.wheelDelta > 0) {
-            this.scale /= this.sceneScaleFactor;
-        } else {
+        if (event.deltaY > 0) {
             this.scale *= this.sceneScaleFactor;
+        } else {
+            this.scale /= this.sceneScaleFactor;
         }
         this.render();
     }
