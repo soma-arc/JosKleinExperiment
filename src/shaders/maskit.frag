@@ -4,17 +4,28 @@ precision mediump float;
 struct Maskit {
     vec2 uv;
     float k;
+    vec2 symmetricalPoint;
     vec2 lineLeftNormal;
     vec4 lineLeftPoints; // [below, above]
     vec2 lineRightNormal;
     vec4 lineRightPoints;
     vec2 ui; // [point radius, line width]
+    bool drawLines;
 };
 
 uniform vec2 u_resolution;
 uniform vec3 u_geometry; // [translateX, translateY, scale]
 uniform int u_kleinIterations;
 uniform Maskit u_maskit;
+
+const vec3 BLACK = vec3(0, 0, 0.01);
+const vec3 WHITE = vec3(1);
+const vec3 RED = vec3(0.8, 0, 0);
+const vec3 GREEN = vec3(0, 0.8, 0);
+const vec3 BLUE = vec3(0, 0, 0.8);
+const vec3 YELLOW = vec3(1, 1, 0);
+const vec3 PINK = vec3(.78, 0, .78);
+const vec3 LIGHT_BLUE = vec3(0, 1, 1);
 
 // from Syntopia http://blog.hvidtfeldts.net/index.php/2015/01/path-tracing-3d-fractals/
 vec2 rand2n(vec2 co, float sampleIndex) {
@@ -52,7 +63,7 @@ vec2 TransA(vec2 z, vec2 uv){
 
 vec2 TransAInv(vec2 z, vec2 uv){
 	float iR = 1. / dot(z + vec2(uv.y,-uv.x), z + vec2(uv.y, -uv.x));
-	z.x += uv.y; z.y = uv.x - z.y; 
+	z.x += uv.y; z.y = uv.x - z.y;
 	z *= iR;
     return z;
 }
@@ -69,9 +80,6 @@ vec3 computeColor(float n){
 
 const int LOOP_NUM = 150;
 vec3 josKleinian(vec2 pos, vec2 uv, float translation){
-    // draw line3
-    //if(abs(pos.y - lineY(pos, uv.xy)) < .01) return vec3(1);
-    
     float loopNum = 0.;
     if(pos.y <= 0. || uv.x < pos.y) {
     	return computeColor(loopNum);
@@ -79,16 +87,12 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
     vec2 lz = pos + vec2(1.);
     vec2 llz = pos + vec2(-1.);
 
-    
-    vec2 catPos1 = vec2(1.5, 1.);
-    vec2 catPos2 = catPos1 - vec2(4., 0.);
-
     for(int i = 0 ; i < LOOP_NUM ; i++){
         // translate
     	pos.x += translation/2. + (uv.y * pos.y) / uv.x;
         pos.x = mod(pos.x, translation);
         pos.x -= translation/2. + (uv.y * pos.y) / uv.x;
-        
+
         // rotate 180
         if (pos.y >= lineY(pos, uv.xy)){
             // pos -= vec2(-uv.y, uv.x) * .5;
@@ -98,20 +102,64 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
             pos = vec2(-uv.y, uv.x) - pos;
             //loopNum++;
         }
-        
+
         pos = TransA(pos, uv);
-        
+
         loopNum++;
-        
+
         // 2-cycle
-        if(dot(pos-llz,pos-llz) < 1e-6) return vec3(0);
+        if(dot(pos-llz,pos-llz) < 1e-6) return BLACK;
 
         if(pos.y <= 0. || uv.x < pos.y) {
         	return computeColor(loopNum);
         }
         llz=lz; lz=pos;
     }
-    return vec3(0.);
+    return BLACK;
+}
+
+bool renderUI(vec2 pos, out vec3 col){
+    col = BLACK;
+
+    if (distance(pos, u_maskit.symmetricalPoint) < u_maskit.ui.x) {
+        col = PINK;
+        return true;
+    } else if (distance(pos, u_maskit.lineLeftPoints.xy) < u_maskit.ui.x) {
+        col = PINK;
+        return true;
+    } else if (distance(pos, u_maskit.lineLeftPoints.zw) < u_maskit.ui.x) {
+        col = PINK;
+        return true;
+    } else if (distance(pos, u_maskit.lineRightPoints.xy) < u_maskit.ui.x) {
+        col = PINK;
+        return true;
+    } else if (distance(pos, u_maskit.lineRightPoints.zw) < u_maskit.ui.x) {
+        col = PINK;
+        return true;
+    }
+
+    if(u_maskit.drawLines) {
+        // draw line3
+        if(abs(pos.y - lineY(pos, u_maskit.uv)) < u_maskit.ui.y) {
+            col = WHITE;
+            return true;
+        }
+
+        // draw left line
+        float ldot = dot(u_maskit.lineLeftPoints.xy - pos, u_maskit.lineLeftNormal);
+        if(abs(ldot) < u_maskit.ui.y) {
+            col = WHITE;
+            return true;
+        }
+
+        // draw right line
+        ldot = dot(u_maskit.lineRightPoints.xy - pos, u_maskit.lineRightNormal);
+        if(abs(ldot) < u_maskit.ui.y) {
+            col = WHITE;
+            return true;
+        }
+    }
+    return false;
 }
 
 float SAMPLE_NUM = 10.;
@@ -119,14 +167,20 @@ out vec4 outColor;
 void main() {
     vec3 sum = vec3(0);
 	float ratio = u_resolution.x / u_resolution.y / 2.0;
-    
+
     for(float i = 0. ; i < SAMPLE_NUM ; i++){
         vec2 position = ( (gl_FragCoord.xy + (rand2n(gl_FragCoord.xy, i))) / u_resolution.yy ) - vec2(ratio, 0.5);
         position *= u_geometry.z;
         position += u_geometry.xy;
-        
-        sum += josKleinian(position, u_maskit.uv, u_maskit.k);
 
+        vec3 c = BLACK;
+        bool render = renderUI(position, c);
+        if(render) {
+            sum += c;
+            continue;
+        }
+
+        sum += josKleinian(position, u_maskit.uv, u_maskit.k);
     }
     outColor = vec4(gammaCorrect(sum/SAMPLE_NUM), 1.);
 }

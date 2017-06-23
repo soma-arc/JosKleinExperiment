@@ -24,7 +24,7 @@ export default class Canvas2D {
 
         this.translate = new Complex(0, 1);
         this.scale = 2.1;
-        this.kleinIterations = 100;
+        this.kleinIterations = 200;
 
         this.sceneScaleFactor = 1.5;
         this.setupMouseListener();
@@ -70,6 +70,31 @@ export default class Canvas2D {
         this.gl.flush();
     }
 
+    /**
+     * Calculate screen coordinates from mouse position
+     * scale * [-width/2, width/2]x[-height/2, height/2]
+     * @param {number} mx
+     * @param {number} my
+     * @returns {Vec2}
+     */
+    calcCanvasCoord(mx, my) {
+        const rect = this.canvas.getBoundingClientRect();
+        return new Complex(this.scale * (((mx - rect.left) * this.pixelRatio) /
+                                         this.canvas.height - this.canvasRatio),
+                           this.scale * -(((my - rect.top) * this.pixelRatio) /
+                                          this.canvas.height - 0.5));
+    }
+
+    /**
+     * Calculate coordinates on scene (consider translation) from mouse position
+     * @param {number} mx
+     * @param {number} my
+     * @returns {Vec2}
+     */
+    calcSceneCoord(mx, my) {
+        return this.calcCanvasCoord(mx, my).add(this.translate);
+    }
+
     setupMouseListener() {
         this.mouseState = {
             isPressing: false,
@@ -84,6 +109,7 @@ export default class Canvas2D {
         this.canvas.addEventListener('mousemove', this.boundOnMouseMove);
         this.boundOnMouseUp = this.onMouseUp.bind(this);
         this.canvas.addEventListener('mouseup', this.boundOnMouseUp);
+        this.canvas.addEventListener('contextmenu', event => event.preventDefault());
     }
 
     onMouseWheel(event) {
@@ -100,7 +126,7 @@ export default class Canvas2D {
         event.preventDefault();
         const mouse = this.calcSceneCoord(event.clientX, event.clientY);
         if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
-//            this.scene.select(mouse, this.scale);
+            this.maskit.select(mouse);
             this.render();
         }
         this.mouseState.prevPosition = mouse;
@@ -110,6 +136,7 @@ export default class Canvas2D {
 
     onMouseUp(event) {
         this.mouseState.isPressing = false;
+        this.maskit.release();
     }
 
     onMouseMove(event) {
@@ -118,8 +145,11 @@ export default class Canvas2D {
         if (!this.mouseState.isPressing) return;
         const mouse = this.calcSceneCoord(event.clientX, event.clientY);
         if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
-//            const moved = this.maskit.move(mouse);
-//            if (moved) this.render();
+            const moved = this.maskit.move(mouse);
+            if (moved) this.render();
+        } else if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
+            this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
+            this.render();
         }
     }
 
