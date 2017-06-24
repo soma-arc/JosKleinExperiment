@@ -233,21 +233,20 @@ void main() {
         position *= u_geometry.z;
         position += u_geometry.xy;
 
-        vec3 c = BLACK;
-        bool render = renderUI(position, c);
-        if(render) {
-            sum += c;
-            continue;
-        }
-
         vec4 cc = vec4(0);
         if(u_maskit.drawCircle) {
-            float dist = distance(position, u_maskit.inversionCircle.xy);
-            float rdist = u_maskit.inversionCircle.z - dist;
-            if(0. < rdist && rdist < u_maskit.ui.z){
-                cc = vec4(0, 1, 0, 0.5);
-            } else if(dist < u_maskit.inversionCircle.z) {
-                cc = vec4(0, 0, 1, 0.5);
+            if(distance(position, u_maskit.inversionCircle.xy) < u_maskit.inversionCircle.z) {
+                cc = vec4(0, 0, 1., 0.5);
+            }
+        }
+
+        position = circleInvert(position, u_maskit.inversionCircle);
+        if(u_maskit.drawLines) {
+            vec3 c = BLACK;
+            bool render = renderUI(position, c);
+            if(render) {
+                sum += c;
+                continue;
             }
         }
 

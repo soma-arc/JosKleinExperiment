@@ -15,6 +15,7 @@ export default class Maskit {
 
         this.pointRadius = 0.03;
         this.lineWidth = 0.01;
+        this.circumferenceWidth = 0.02;
 
         this.selectedComponentId = -1;
         this.diffToComponent = new Complex(0, 0);
@@ -23,7 +24,24 @@ export default class Maskit {
         this.invCircleR = 1;
 
         this.drawLines = false;
-        this.applyInversion = false;
+        this.drawCircle = false;
+        this.applyInversion = true;
+
+        this.parameterChangedListener = [];
+    }
+
+    /**
+     *
+     * @param {function} listener
+     */
+    addParameterChangedListener(listener) {
+        this.parameterChangedListener.push(listener);
+    }
+
+    onParameterChanged() {
+        for (const f of this.parameterChangedListener) {
+            f(this);
+        }
     }
 
     release() {
@@ -88,10 +106,11 @@ export default class Maskit {
             return true;
         }
 
+        if (!this.drawCircle) return false;
         const dc = mouse.sub(this.invCircleCenter);
         const d = dc.abs();
         const distFromCircumference = this.invCircleR - d;
-        if (distFromCircumference < this.lineWidth) {
+        if (0 < distFromCircumference && distFromCircumference < this.circumferenceWidth) {
             this.selectedComponentId = Maskit.INVERSION_CIRCLE_CIRCUMFERENCE;
             this.diffToComponent = new Complex(distFromCircumference, distFromCircumference);
             return true;
@@ -151,7 +170,8 @@ export default class Maskit {
         }
         }
 
-        this.update()
+        this.update();
+        this.onParameterChanged();
         return true;
     }
 
@@ -166,6 +186,7 @@ export default class Maskit {
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.inversionCircle'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.ui'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.drawLines'));
+        uniLocations.push(gl.getUniformLocation(program, 'u_maskit.drawCircle'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.applyInversion'));
     }
 
@@ -193,10 +214,12 @@ export default class Maskit {
                      this.invCircleCenter.re, this.invCircleCenter.im,
                      this.invCircleR, this.invCircleR * this.invCircleR);
         // ui
-        gl.uniform2f(uniLocations[uniI++],
-                     this.pointRadius, this.lineWidth);
+        gl.uniform3f(uniLocations[uniI++],
+                     this.pointRadius, this.lineWidth, this.circumferenceWidth);
         gl.uniform1i(uniLocations[uniI++],
                      this.drawLines);
+        gl.uniform1i(uniLocations[uniI++],
+                     this.drawCircle);
         gl.uniform1i(uniLocations[uniI++],
                      this.applyInversion);
         return uniI;

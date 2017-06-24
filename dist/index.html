@@ -7,9 +7,11 @@
         <script type="text/javascript" src="./bundle.js"></script>
     </head>
     <body id="bodyElem">
-        <canvas class="renderCanvas" id="canvas" width="720px" height="360px"></canvas><br>
+        <canvas class="renderCanvas" id="canvas" width="640px" height="360px"></canvas>
+        <canvas class="renderCanvas" id="invCanvas" width="640px" height="360px"></canvas><br>
         <input type="checkbox" id="drawLineCheck">Draw Lines
-        <input type="checkbox" id="inversionCheck">Apply Inversion<br>
+        <input type="checkbox" id="drawCircleCheck">Draw Circle
+        <input type="checkbox" id="applyInversionCheck" checked="checked" >Apply Inversion<br>
         Right Button + dragging : move camera<br>
         Wheel : zoom<br><br>
         This shader is based on

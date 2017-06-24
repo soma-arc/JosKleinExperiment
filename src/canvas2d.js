@@ -3,12 +3,12 @@ import { GetWebGL2Context, CreateSquareVbo, AttachShader,
 import Complex from './complex.js';
 
 const RENDER_VERTEX = require('./shaders/render.vert');
-const RENDER_MASKIT_FRAGMENT = require('./shaders/maskit.frag');
 
-export default class Canvas2D {
-    constructor(canvasId, maskit) {
+class Canvas2D {
+    constructor(canvasId, maskit, fragment) {
         this.canvasId = canvasId;
         this.maskit = maskit;
+        this.fragment = fragment;
 
         this.canvas = document.getElementById(canvasId);
         this.pixelRatio = window.devicePixelRatio;
@@ -27,7 +27,6 @@ export default class Canvas2D {
         this.kleinIterations = 200;
 
         this.sceneScaleFactor = 1.5;
-        this.setupMouseListener();
     }
 
     setupShader() {
@@ -35,7 +34,7 @@ export default class Canvas2D {
         this.renderProgram = this.gl.createProgram();
         AttachShader(this.gl, RENDER_VERTEX,
                      this.renderProgram, this.gl.VERTEX_SHADER);
-        AttachShader(this.gl, RENDER_MASKIT_FRAGMENT,
+        AttachShader(this.gl, this.fragment,
                      this.renderProgram, this.gl.FRAGMENT_SHADER);
         LinkProgram(this.gl, this.renderProgram);
         this.renderVAttrib = this.gl.getAttribLocation(this.renderProgram, 'a_vertex');
@@ -122,35 +121,13 @@ export default class Canvas2D {
         this.render();
     }
 
-    onMouseDown(event) {
-        event.preventDefault();
-        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
-        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
-            this.maskit.select(mouse);
-            this.render();
-        }
-        this.mouseState.prevPosition = mouse;
-        this.mouseState.prevTranslate = this.translate;
-        this.mouseState.isPressing = true;
-    }
+    onMouseDown(event) {}
+
+    onMouseMove(event) {}
 
     onMouseUp(event) {
         this.mouseState.isPressing = false;
         this.maskit.release();
-    }
-
-    onMouseMove(event) {
-        // envent.button return 0 when the mouse is not pressed.
-        // Thus we store mouseState and check it
-        if (!this.mouseState.isPressing) return;
-        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
-        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
-            const moved = this.maskit.move(mouse);
-            if (moved) this.render();
-        } else if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
-            this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
-            this.render();
-        }
     }
 
     static get MOUSE_BUTTON_LEFT() {
@@ -163,5 +140,70 @@ export default class Canvas2D {
 
     static get MOUSE_BUTTON_RIGHT() {
         return 2;
+    }
+}
+
+export class MaskitCanvas extends Canvas2D {
+    constructor(canvasId, maskit, fragment) {
+        super(canvasId, maskit, fragment);
+        this.maskit.addParameterChangedListener((e) => {
+            this.render();
+        });
+        this.setupMouseListener();
+    }
+
+    onMouseDown(event) {
+        event.preventDefault();
+        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
+        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
+            this.maskit.select(mouse);
+            this.render();
+        }
+        this.mouseState.prevPosition = mouse;
+        this.mouseState.prevTranslate = this.translate;
+        this.mouseState.isPressing = true;
+    }
+
+    onMouseMove(event) {
+        // envent.button return 0 when the mouse is not pressed.
+        // Thus we store mouseState and check it
+        if (!this.mouseState.isPressing) return;
+        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
+        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
+            this.maskit.move(mouse);
+        } else if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
+            this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
+            this.render();
+        }
+    }
+}
+
+export class InvertedMaskitCanvas extends Canvas2D {
+    constructor(canvasId, maskit, fragment) {
+        super(canvasId, maskit, fragment);
+        this.maskit.addParameterChangedListener((e) => {
+            this.render();
+        });
+        this.setupMouseListener();
+    }
+
+    onMouseDown(event) {
+        event.preventDefault();
+        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
+
+        this.mouseState.prevPosition = mouse;
+        this.mouseState.prevTranslate = this.translate;
+        this.mouseState.isPressing = true;
+    }
+
+    onMouseMove(event) {
+        // envent.button return 0 when the mouse is not pressed.
+        // Thus we store mouseState and check it
+        if (!this.mouseState.isPressing) return;
+        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
+        if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
+            this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
+            this.render();
+        }
     }
 }

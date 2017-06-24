@@ -1,18 +1,32 @@
 import Maskit from './maskit.js';
-import Canvas2D from './canvas2d.js';
+import { MaskitCanvas, InvertedMaskitCanvas } from './canvas2d.js';
+
+const RENDER_MASKIT_FRAGMENT = require('./shaders/maskit.frag');
+const RENDER_INV_MASKIT_FRAGMENT = require('./shaders/invMaskit.frag');
 
 window.addEventListener('load', () => {
     const maskit = new Maskit(2, 0, 0.5); // k = 2
-    const canvas = new Canvas2D('canvas', maskit);
+    const maskitCanvas = new MaskitCanvas('canvas', maskit, RENDER_MASKIT_FRAGMENT);
+    const invCanvas = new InvertedMaskitCanvas('invCanvas', maskit, RENDER_INV_MASKIT_FRAGMENT);
+
     const drawLineCheck = document.getElementById('drawLineCheck');
     drawLineCheck.addEventListener('change', () => {
         maskit.drawLines = drawLineCheck.checked;
-        canvas.render();
+        maskitCanvas.render();
+        invCanvas.render();
     });
-    const inversionCheck = document.getElementById('inversionCheck');
-    inversionCheck.addEventListener('change', () => {
-        maskit.applyInversion = inversionCheck.checked;
-        canvas.render();
+    const drawCircle = document.getElementById('drawCircleCheck');
+    drawCircle.addEventListener('change', () => {
+        maskit.drawCircle = drawCircle.checked;
+        maskitCanvas.render();
+        invCanvas.render();
     });
-    canvas.render();
+    const applyInversion = document.getElementById('applyInversionCheck');
+    applyInversion.addEventListener('change', () => {
+        maskit.applyInversion = applyInversion.checked;
+        maskitCanvas.render();
+        invCanvas.render();
+    });
+    maskitCanvas.render();
+    invCanvas.render();
 });
