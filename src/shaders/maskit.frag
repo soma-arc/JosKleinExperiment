@@ -9,8 +9,10 @@ struct Maskit {
     vec4 lineLeftPoints; // [below, above]
     vec2 lineRightNormal;
     vec4 lineRightPoints;
+    vec4 inversionCircle;
     vec2 ui; // [point radius, line width]
     bool drawLines;
+    bool applyInversion;
 };
 
 uniform vec2 u_resolution;
@@ -35,6 +37,13 @@ vec2 rand2n(vec2 co, float sampleIndex) {
     return vec2(fract(sin(dot(seed.xy ,vec2(12.9898,78.233))) * 43758.5453),
                 fract(cos(dot(seed.xy ,vec2(4.898,7.23))) * 23421.631));
 }
+
+vec2 circleInvert(const vec2 pos, const vec4 circle){
+    vec2 p = pos - circle.xy;
+    float d = length(p);
+    return (p * circle.w)/(d * d) + circle.xy;
+}
+
 
 const float GAMMA_COEFF = 2.2;
 const float DISPLAY_GAMMA_COEFF = 1. / GAMMA_COEFF;
@@ -162,6 +171,12 @@ bool renderUI(vec2 pos, out vec3 col){
     return false;
 }
 
+// front to back blend
+vec4 blendCol(vec4 srcC, vec4 outC){
+	srcC.rgb *= srcC.a;
+	return outC + srcC * (1.0 - outC.a);
+}
+
 float SAMPLE_NUM = 10.;
 out vec4 outColor;
 void main() {
@@ -180,7 +195,17 @@ void main() {
             continue;
         }
 
-        sum += josKleinian(position, u_maskit.uv, u_maskit.k);
+        vec4 cc = vec4(0);
+        if(u_maskit.applyInversion) {
+            if(distance(position, u_maskit.inversionCircle.xy) < u_maskit.inversionCircle.z) {
+                cc = vec4(0, 0, 1., 0.5);
+            }
+        }
+
+        if(u_maskit.applyInversion)
+            position = circleInvert(position, u_maskit.inversionCircle);
+        sum += blendCol(vec4(josKleinian(position,
+                                         u_maskit.uv, u_maskit.k), 1.), cc).rgb;
     }
     outColor = vec4(gammaCorrect(sum/SAMPLE_NUM), 1.);
 }
