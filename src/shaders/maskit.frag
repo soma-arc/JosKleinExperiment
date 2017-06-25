@@ -1,6 +1,7 @@
 #version 300 es
 precision mediump float;
 
+const int MAX_ORBIT_POINTS = 20;
 struct Maskit {
     vec2 uv;
     float k;
@@ -13,7 +14,10 @@ struct Maskit {
     vec3 ui; // [point radius, line width, circumference width]
     bool drawLines;
     bool drawCircle;
+    bool drawInner;
     bool applyInversion;
+    bool trackOrbit;
+    vec2 orbitPoints[MAX_ORBIT_POINTS];
 };
 
 uniform vec2 u_resolution;
@@ -21,7 +25,7 @@ uniform vec3 u_geometry; // [translateX, translateY, scale]
 uniform int u_kleinIterations;
 uniform Maskit u_maskit;
 
-const vec3 BLACK = vec3(0, 0, 0.01);
+const vec3 BLACK = vec3(0, 0, 0.0);
 const vec3 WHITE = vec3(1);
 const vec3 RED = vec3(0.8, 0, 0);
 const vec3 GREEN = vec3(0, 0.8, 0);
@@ -88,8 +92,10 @@ vec3 computeColor(float n){
 	return hsv2rgb(vec3(.3 +0.06 * n, 1., .7));
 }
 
-vec3 computeColor2(float n) {
-    if(n == 0.) return vec3(0);
+vec3 computeColor2(float n, float numTransA) {
+    if(n == 0.) {
+        return u_maskit.drawInner ? computeColor(numTransA) : BLACK;
+    }
     return hsv2rgb(vec3(0. + 0.05 * (n -1.), 1.0, 1.0));
 }
 
@@ -98,7 +104,7 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
     float loopNum = 0.;
     vec2 lz = pos + vec2(1.);
     vec2 llz = pos + vec2(-1.);
-
+    float numTransA = 0.;
     for(int i = 0 ; i < LOOP_NUM ; i++){
         // translate
     	pos.x += translation/2. + (uv.y * pos.y) / uv.x;
@@ -116,11 +122,14 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
         }
 
         pos = TransA(pos, uv);
+        loopNum++;
 
         // 2-cycle
-        if(dot(pos-llz,pos-llz) < 1e-6) return BLACK;
+        if(dot(pos-llz,pos-llz) < 1e-6)
+            return u_maskit.drawInner ?
+                hsv2rgb(vec3(0.01 * (loopNum-1.), 1., 1.)) :
+                BLACK;
 
-        loopNum++;
         if(pos.y <= 0. || uv.x < pos.y) {
         	return computeColor(loopNum);
         }
@@ -135,6 +144,7 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
     vec2 lz = pos + vec2(1.);
     vec2 llz = pos + vec2(-1.);
 
+    float numTransA = 0.;
     for(int i = 0 ; i < LOOP_NUM ; i++){
         // translate
     	pos.x += translation/2. + (uv.y * pos.y) / uv.x;
@@ -152,7 +162,7 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
         }
 
         pos = TransA(pos, uv);
-
+        numTransA++;
         if(uv.x < pos.y) {
             pos.y -= uv.x;
             pos.y *= -1.;
@@ -165,11 +175,11 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
         }
 
         // 2-cycle
-        if(dot(pos-llz,pos-llz) < 1e-6) return computeColor2(loopNum);
+        if(dot(pos-llz,pos-llz) < 1e-6) return computeColor2(loopNum, numTransA);
 
         llz=lz; lz=pos;
     }
-    return BLACK;
+    return computeColor2(loopNum, numTransA);
 }
 
 bool renderUI(vec2 pos, out vec3 col){
@@ -216,6 +226,42 @@ bool renderUI(vec2 pos, out vec3 col){
     return false;
 }
 
+vec3 computeOrbitColor(float n) {
+    return u_maskit.applyInversion ?
+        hsv2rgb(vec3(.5 +0.03 * n, 1., 1.)):
+        hsv2rgb(vec3(0. + 0.03 * (n -1.), 1.0, 1.0));
+}
+
+bool renderOrbit(vec2 pos, out vec3 col){
+    col = vec3(0);
+    for(int i = 0; i < MAX_ORBIT_POINTS; i++) {
+        if(distance(pos, u_maskit.orbitPoints[i]) < u_maskit.ui.x * 1.2) {
+            col = computeOrbitColor(float(i));
+            return true;
+        }
+        if(i > 0) {
+            vec2 p1 = u_maskit.orbitPoints[i - 1];
+            vec2 p2 = u_maskit.orbitPoints[i];
+            vec2 v = p2 - p1;
+            vec2 n = normalize(vec2(-v.y, v.x));
+            vec2 posP1 = pos - p1;
+            vec2 posP2 = pos - p2;
+            if(dot(posP1, posP2) < 0. &&
+               abs(dot(n, posP1)) < u_maskit.ui.y) {
+                /*
+                float dist = distance(p1, p2);
+                float distP1Pos = length(posP1);
+                col = mix(computeOrbitColor(float(i)),
+                          computeOrbitColor(float(i-1)), distP1Pos / dist);
+                */
+                col = computeOrbitColor(float(i));
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // front to back blend
 vec4 blendCol(vec4 srcC, vec4 outC){
 	srcC.rgb *= srcC.a;
@@ -248,6 +294,14 @@ void main() {
                 cc = vec4(0, 1, 0, 0.5);
             } else if(dist < u_maskit.inversionCircle.z) {
                 cc = vec4(0, 0, 1, 0.5);
+            }
+        }
+
+        if(u_maskit.trackOrbit) {
+            bool render = renderOrbit(position, c);
+            if(render) {
+                sum += c;
+                continue;
             }
         }
 

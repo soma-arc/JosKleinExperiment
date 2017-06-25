@@ -165,10 +165,11 @@ export class MaskitCanvas extends Canvas2D {
     }
 
     onMouseMove(event) {
+        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
+        this.maskit.updateOrbitPoints(mouse);
         // envent.button return 0 when the mouse is not pressed.
         // Thus we store mouseState and check it
         if (!this.mouseState.isPressing) return;
-        const mouse = this.calcSceneCoord(event.clientX, event.clientY);
         if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
             this.maskit.move(mouse);
         } else if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {

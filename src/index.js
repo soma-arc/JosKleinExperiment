@@ -21,9 +21,21 @@ window.addEventListener('load', () => {
         maskitCanvas.render();
         invCanvas.render();
     });
+    const drawInner = document.getElementById('drawInnerCheck');
+    drawInner.addEventListener('change', () => {
+        maskit.drawInner = drawInner.checked;
+        maskitCanvas.render();
+        invCanvas.render();
+    });
     const applyInversion = document.getElementById('applyInversionCheck');
     applyInversion.addEventListener('change', () => {
         maskit.applyInversion = applyInversion.checked;
+        maskitCanvas.render();
+        invCanvas.render();
+    });
+    const trackOrbit = document.getElementById('trackOrbitCheck');
+    trackOrbit.addEventListener('change', () => {
+        maskit.trackOrbit = trackOrbit.checked;
         maskitCanvas.render();
         invCanvas.render();
     });

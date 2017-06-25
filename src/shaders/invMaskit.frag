@@ -1,6 +1,7 @@
 #version 300 es
 precision mediump float;
 
+const int MAX_ORBIT_POINTS = 20;
 struct Maskit {
     vec2 uv;
     float k;
@@ -13,8 +14,12 @@ struct Maskit {
     vec3 ui; // [point radius, line width, circumference width]
     bool drawLines;
     bool drawCircle;
+    bool drawInner;
     bool applyInversion;
+    bool trackOrbit;
+    vec2 orbitPoints[MAX_ORBIT_POINTS];
 };
+
 
 uniform vec2 u_resolution;
 uniform vec3 u_geometry; // [translateX, translateY, scale]
@@ -88,8 +93,10 @@ vec3 computeColor(float n){
 	return hsv2rgb(vec3(.3 +0.06 * n, 1., .7));
 }
 
-vec3 computeColor2(float n) {
-    if(n == 0.) return vec3(0);
+vec3 computeColor2(float n, float numTransA) {
+    if(n == 0.) {
+        return u_maskit.drawInner ? computeColor(numTransA) : BLACK;
+    }
     return hsv2rgb(vec3(0. + 0.05 * (n -1.), 1.0, 1.0));
 }
 
@@ -98,7 +105,7 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
     float loopNum = 0.;
     vec2 lz = pos + vec2(1.);
     vec2 llz = pos + vec2(-1.);
-
+    float numTransA = 0.;
     for(int i = 0 ; i < LOOP_NUM ; i++){
         // translate
     	pos.x += translation/2. + (uv.y * pos.y) / uv.x;
@@ -116,11 +123,14 @@ vec3 josKleinian(vec2 pos, vec2 uv, float translation){
         }
 
         pos = TransA(pos, uv);
+        loopNum++;
 
         // 2-cycle
-        if(dot(pos-llz,pos-llz) < 1e-6) return BLACK;
+        if(dot(pos-llz,pos-llz) < 1e-6)
+            return u_maskit.drawInner ?
+                hsv2rgb(vec3(0.01 * (loopNum-1.), 1., 1.)) :
+                BLACK;
 
-        loopNum++;
         if(pos.y <= 0. || uv.x < pos.y) {
         	return computeColor(loopNum);
         }
@@ -135,6 +145,7 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
     vec2 lz = pos + vec2(1.);
     vec2 llz = pos + vec2(-1.);
 
+    float numTransA = 0.;
     for(int i = 0 ; i < LOOP_NUM ; i++){
         // translate
     	pos.x += translation/2. + (uv.y * pos.y) / uv.x;
@@ -152,7 +163,7 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
         }
 
         pos = TransA(pos, uv);
-
+        numTransA++;
         if(uv.x < pos.y) {
             pos.y -= uv.x;
             pos.y *= -1.;
@@ -165,11 +176,11 @@ vec3 josKleinianIIS(vec2 pos, vec2 uv, float translation){
         }
 
         // 2-cycle
-        if(dot(pos-llz,pos-llz) < 1e-6) return computeColor2(loopNum);
+        if(dot(pos-llz,pos-llz) < 1e-6) return computeColor2(loopNum, numTransA);
 
         llz=lz; lz=pos;
     }
-    return BLACK;
+    return computeColor2(loopNum, numTransA);
 }
 
 bool renderUI(vec2 pos, out vec3 col){

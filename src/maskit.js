@@ -26,8 +26,13 @@ export default class Maskit {
         this.drawLines = false;
         this.drawCircle = false;
         this.applyInversion = true;
+        this.trackOrbit = false;
+        this.drawInner = false;
 
         this.parameterChangedListener = [];
+
+        this.maxOrbitPoints = 20;
+        this.orbitPoints = new Array(this.maxOrbitPoints * 2);
     }
 
     /**
@@ -63,6 +68,13 @@ export default class Maskit {
         const lineRightDir = this.rightAbobeP.sub(this.rightBelowP);
         this.lineRightNormal = new Complex(-lineRightDir.im, lineRightDir.re); // rotate 90
         this.lineLeftNormal = this.lineRightNormal.scale(-1);
+    }
+
+    updateOrbitPoints(mouse) {
+        if (this.trackOrbit) {
+            this.orbitPoints = this.computeOrbit(mouse, this.maxOrbitPoints);
+            this.onParameterChanged();
+        }
     }
 
     /**
@@ -175,6 +187,85 @@ export default class Maskit {
         return true;
     }
 
+    /**
+     *
+     * @param {Complex} pos
+     * @param {Complex} uv
+     * @returns {number}
+     */
+    lineY(pos, uv) {
+        return uv.re * 0.5 +
+            Math.sign(uv.im * 0.5) *
+            (2.0 * uv.re - 1.95) / 4 *
+            Math.sign(pos.re + uv.im * 0.5) *
+            (1.0 - Math.exp(-(7.2 - (1.95 - uv.re) * 15.0) * Math.abs(pos.re + uv.im * 0.5)));
+    }
+
+    /**
+     *
+     * @param {Complex} z
+     * @param {Complex} uv
+     * @returns {Complex}
+     */
+    transA(z, uv) {
+        const iR = 1.0 / z.absSq();
+        const c = z.scale(-iR);
+        c.re = -uv.im - c.re;
+        c.im = uv.re + c.im;
+        return c;
+    }
+
+    /**
+     *
+     * @param {Complex} seedP seed of the orbit
+     * @param {number} maxPoints
+     * @return {number[]}
+     */
+    computeOrbit(seedP, maxPoints) {
+        const orbit = [seedP];
+        let numPoints = 1;
+
+        let pos = new Complex(seedP.re, seedP.im);
+        for (let i = 0; i < 100; i++) {
+            const xBound = this.k / 2 + (this.t.im * pos.im) / this.t.re;
+            if (pos.re < -xBound || xBound < pos.re) {
+                pos.re += xBound;
+                pos.re = Math.abs(pos.re % this.k);
+                pos.re -= xBound;
+                orbit.push(new Complex(pos.re, pos.im));
+                numPoints++;
+                if (numPoints === maxPoints) break;
+            }
+
+            if (pos.im >= this.lineY(pos, this.t)) {
+                pos = new Complex(-this.t.im, this.t.re).sub(pos);
+                orbit.push(new Complex(pos.re, pos.im));
+                numPoints++;
+                if (numPoints === maxPoints) break;
+            }
+
+            pos = this.transA(pos, this.t);
+            orbit.push(new Complex(pos.re, pos.im));
+            numPoints++;
+            if (numPoints === maxPoints) break;
+
+            if (pos.im < 0.0 || this.t.re < pos.im) {
+                const lastP = orbit[numPoints - 1];
+                for (let i = numPoints; i < maxPoints; i++) {
+                    orbit.push(lastP);
+                }
+                break;
+            }
+        }
+
+        const linearArray = new Array(maxPoints * 2);
+        for (let i = 0; i < maxPoints; i++) {
+            linearArray[i * 2 + 0] = orbit[i].re;
+            linearArray[i * 2 + 1] = orbit[i].im;
+        }
+        return linearArray;
+    }
+
     setUniformLocations(gl, uniLocations, program) {
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.uv'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.k'));
@@ -187,7 +278,10 @@ export default class Maskit {
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.ui'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.drawLines'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.drawCircle'));
+        uniLocations.push(gl.getUniformLocation(program, 'u_maskit.drawInner'));
         uniLocations.push(gl.getUniformLocation(program, 'u_maskit.applyInversion'));
+        uniLocations.push(gl.getUniformLocation(program, 'u_maskit.trackOrbit'));
+        uniLocations.push(gl.getUniformLocation(program, 'u_maskit.orbitPoints'));
     }
 
     setUniformValues(gl, uniLocations, uniIndex, sceneScale) {
@@ -221,7 +315,14 @@ export default class Maskit {
         gl.uniform1i(uniLocations[uniI++],
                      this.drawCircle);
         gl.uniform1i(uniLocations[uniI++],
+                     this.drawInner);
+        gl.uniform1i(uniLocations[uniI++],
                      this.applyInversion);
+        gl.uniform1i(uniLocations[uniI++],
+                     this.trackOrbit);
+        // trackedOrbit
+        gl.uniform2fv(uniLocations[uniI++],
+                      this.orbitPoints);
         return uniI;
     }
 
