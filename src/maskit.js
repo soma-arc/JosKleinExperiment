@@ -230,7 +230,9 @@ export default class Maskit {
             const xBound = this.k / 2 + (this.t.im * pos.im) / this.t.re;
             if (pos.re < -xBound || xBound < pos.re) {
                 pos.re += xBound;
-                pos.re = Math.abs(pos.re % this.k);
+                // mod(pos.re, this.k) in GLSL
+                // In JS, behavior of (pos.re % this.k) is different from mod in GLSL
+                pos.re = pos.re - this.k * Math.floor(pos.re / this.k);
                 pos.re -= xBound;
                 orbit.push(new Complex(pos.re, pos.im));
                 numPoints++;
