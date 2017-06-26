@@ -8,14 +8,18 @@
     </head>
     <body id="bodyElem">
         <canvas class="renderCanvas" id="canvas" width="640px" height="360px"></canvas>
-        <canvas class="renderCanvas" id="invCanvas" width="640px" height="360px"></canvas><br>
+        <canvas class="renderCanvas" id="invCanvas" width="640px" height="360px"></canvas>
+        <canvas class="renderCanvas" id="3dCanvas" width="640px" height="360px"
+                style="display:none"></canvas><br>
         <input type="checkbox" id="drawLineCheck">Draw Lines
         <input type="checkbox" id="drawCircleCheck">Draw Circle
         <input type="checkbox" id="drawInnerCheck">Draw Inner
         <input type="checkbox" id="applyInversionCheck" checked="checked" >Apply Inversion
-        <input type="checkbox" id="trackOrbitCheck" >Track Mouse Orbit<br>
+        <input type="checkbox" id="trackOrbitCheck" >Track Mouse Orbit
+        <input type="checkbox" id="view3dCheck" >3D View<br>
         Right Button + dragging : move camera<br>
         Wheel : zoom<br><br>
+        3D view mode may require high GPU power, so run it at your own risk.<br>
         This shader is based on
         <a href="https://www.shadertoy.com/view/MtKXRh">https://www.shadertoy.com/view/MtKXRh</a> by
         Jos Leys<br>

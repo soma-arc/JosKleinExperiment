@@ -4,7 +4,7 @@ import Complex from './complex.js';
 
 const RENDER_VERTEX = require('./shaders/render.vert');
 
-class Canvas2D {
+class Canvas {
     constructor(canvasId, maskit, fragment) {
         this.canvasId = canvasId;
         this.maskit = maskit;
@@ -27,6 +27,23 @@ class Canvas2D {
         this.kleinIterations = 200;
 
         this.sceneScaleFactor = 1.5;
+    }
+
+    hideCanvas() {
+        this.canvas.style.display = 'none';
+    }
+
+    showCanvas() {
+        this.canvas.style.display = 'inline';
+    }
+
+    toggleCanvas() {
+        if (this.canvas.style.display === 'none') {
+            this.showCanvas();
+            this.render();
+        } else {
+            this.hideCanvas();
+        }
     }
 
     setupShader() {
@@ -59,6 +76,7 @@ class Canvas2D {
     }
 
     render() {
+        if (this.canvas.style.display === 'none') return;
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         this.gl.useProgram(this.renderProgram);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
@@ -143,7 +161,7 @@ class Canvas2D {
     }
 }
 
-export class MaskitCanvas extends Canvas2D {
+export class MaskitCanvas extends Canvas {
     constructor(canvasId, maskit, fragment) {
         super(canvasId, maskit, fragment);
         this.maskit.addParameterChangedListener((e) => {
@@ -155,7 +173,7 @@ export class MaskitCanvas extends Canvas2D {
     onMouseDown(event) {
         event.preventDefault();
         const mouse = this.calcSceneCoord(event.clientX, event.clientY);
-        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
+        if (event.button === Canvas.MOUSE_BUTTON_LEFT) {
             this.maskit.select(mouse);
             this.render();
         }
@@ -170,16 +188,16 @@ export class MaskitCanvas extends Canvas2D {
         // envent.button return 0 when the mouse is not pressed.
         // Thus we store mouseState and check it
         if (!this.mouseState.isPressing) return;
-        if (event.button === Canvas2D.MOUSE_BUTTON_LEFT) {
+        if (event.button === Canvas.MOUSE_BUTTON_LEFT) {
             this.maskit.move(mouse);
-        } else if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
+        } else if (event.button === Canvas.MOUSE_BUTTON_RIGHT) {
             this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
             this.render();
         }
     }
 }
 
-export class InvertedMaskitCanvas extends Canvas2D {
+export class InvertedMaskitCanvas extends Canvas {
     constructor(canvasId, maskit, fragment) {
         super(canvasId, maskit, fragment);
         this.maskit.addParameterChangedListener((e) => {
@@ -202,9 +220,101 @@ export class InvertedMaskitCanvas extends Canvas2D {
         // Thus we store mouseState and check it
         if (!this.mouseState.isPressing) return;
         const mouse = this.calcSceneCoord(event.clientX, event.clientY);
-        if (event.button === Canvas2D.MOUSE_BUTTON_RIGHT) {
+        if (event.button === Canvas.MOUSE_BUTTON_RIGHT) {
             this.translate = this.translate.sub(mouse.sub(this.mouseState.prevPosition));
             this.render();
         }
+    }
+}
+
+export class Maskit3dCanvas extends Canvas {
+    constructor(canvasId, maskit, fragment) {
+        super(canvasId, maskit, fragment);
+        this.cameraPos = [0, 1, 1];
+        this.cameraUp = [0, 1, 0];
+        this.cameraTarget = [0, 1, 0];
+        this.cameraDistance = 2;
+        // camera position
+        this.cameraLnglat = [90, 0];
+        this.mouseDownLngLat = [0, 0];
+
+        this.setupMouseListener();
+        this.updateCamera();
+        //        console.log(this.cameraPos);
+
+        this.maskit.addParameterChangedListener((e) => {
+            this.render();
+        });
+    }
+
+    updateCamera() {
+//        this.cameraLnglat[1] = Math.max(-85, Math.min(85, this.cameraLnglat[1]));
+        const phi = (90 - this.cameraLnglat[1]) * Math.PI / 180;
+        const theta = (this.cameraLnglat[0]) * Math.PI / 180;
+
+        this.cameraPos = [this.cameraDistance * Math.sin(phi) * Math.cos(theta),
+                          Math.max(-0.9, this.cameraDistance * Math.cos(phi)),
+                          this.cameraDistance * Math.sin(phi) * Math.sin(theta)];
+        this.cameraPos = [this.cameraPos[0] + this.cameraTarget[0],
+                          this.cameraPos[1] + this.cameraTarget[1],
+                          this.cameraPos[2] + this.cameraTarget[2]];
+        this.render();
+    }
+
+    onMouseDown(event) {
+        event.preventDefault();
+        const mouse = this.calcCanvasCoord(event.clientX, event.clientY);
+        this.mouseState.prevPosition = mouse;
+        this.mouseState.prevTranslate = this.translate;
+        this.mouseDownLngLat = this.cameraLnglat;
+        this.mouseState.isPressing = true;
+    }
+
+    onMouseMove(event) {
+        event.preventDefault();
+        if (this.mouseState.isPressing) {
+            const mouse = this.calcCanvasCoord(event.clientX, event.clientY);
+            this.cameraLnglat = [(this.mouseState.prevPosition.re - mouse.re) * 50.5 +
+                                 this.mouseDownLngLat[0],
+                                 (mouse.im - this.mouseState.prevPosition.im) * 50.5 +
+                                 this.mouseDownLngLat[1]];
+            this.updateCamera();
+        }
+    }
+
+    onMouseWheel(event) {
+        event.preventDefault();
+        if (event.deltaY > 0) {
+            this.cameraDistance *= 1.25;
+        } else if (this.cameraDistance) {
+            this.cameraDistance /= 1.25;
+        }
+        this.updateCamera();
+    }
+
+    setUniformLocations() {
+        this.uniLocations = [];
+        this.uniLocations.push(this.gl.getUniformLocation(this.renderProgram, 'u_resolution'));
+        this.uniLocations.push(this.gl.getUniformLocation(this.renderProgram,
+                                                          'u_cameraPos'));
+        this.uniLocations.push(this.gl.getUniformLocation(this.renderProgram,
+                                                          'u_cameraTarget'));
+        this.uniLocations.push(this.gl.getUniformLocation(this.renderProgram,
+                                                          'u_cameraUp'));
+        this.uniLocations.push(this.gl.getUniformLocation(this.renderProgram, 'u_kleinIterations'));
+        this.maskit.setUniformLocations(this.gl, this.uniLocations, this.renderProgram);
+    }
+
+    setUniformValues() {
+        let i = 0;
+        this.gl.uniform2f(this.uniLocations[i++], this.canvas.width, this.canvas.height);
+        this.gl.uniform3f(this.uniLocations[i++],
+                          this.cameraPos[0], this.cameraPos[1], this.cameraPos[2]);
+        this.gl.uniform3f(this.uniLocations[i++],
+                          this.cameraTarget[0], this.cameraTarget[1], this.cameraTarget[2]);
+        this.gl.uniform3f(this.uniLocations[i++],
+                          this.cameraUp[0], this.cameraUp[1], this.cameraUp[2]);
+        this.gl.uniform1i(this.uniLocations[i++], this.kleinIterations);
+        i = this.maskit.setUniformValues(this.gl, this.uniLocations, i, this.scale);
     }
 }
